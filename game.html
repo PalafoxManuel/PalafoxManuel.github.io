@@ -1,0 +1,536 @@
+<!-- Examen Unidad 2 -->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="icon" href="evilPacman.png" type="image/x-icon">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,
+    initial-scale=1">
+    <title>EvilPacman</title>
+    <style type="text/css">
+        canvas {
+            background-color: rgb(18, 18, 20);
+            display: block;
+            margin: 0 auto;
+        }
+        body {
+            background-color: darkgray;
+            margin: 0;
+        }
+        .menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            width: 400px;
+            z-index: 1;
+        }
+        .menu h2 {
+            color: white;
+        }
+        .menu li {
+            color: white;
+        }
+        .menu button {
+            display: block;
+            width: 200px;
+            margin: 10px auto;
+            padding: 10px;
+            font-size: 18px;
+            background-color: #ff3b3b;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .menu button:hover {
+            background-color: #ff6666;
+        }
+        #controlsPopup {
+            z-index: 2;
+        }
+        #winPopup {
+            z-index: 2;
+        }
+        #loadingPopup {
+            z-index: 3;
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            width: 300px;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="my_canvas" width="800" height="900"></canvas>
+
+    <audio id="ambientMusic" src="Audios/organs.mp3" loop></audio>
+
+    <!-- Pop up de carga -->
+    <div id="loadingPopup" class="menu">
+        <h2>Loading Pacmans...</h2>
+    </div>
+
+    <!-- Pop up perdedor -->
+    <div id="loosePopup" class="menu">
+        <h2>Game Over</h2>
+        <button onclick="resetGameLoose()">Retry Level</button>
+        <button onclick="window.location.href='index.html'">Back to Menu</button>
+    </div>
+
+    <!-- Pop up nivel maximo -->
+     <div id="maxLevelPopup" class="menu">
+        <h2>Maximum level reached, thanks for playing!</h2>
+        <button onclick="window.location.href='index.html'">Back to Menu</button>
+     </div>
+
+    <!-- Pop up al ganar -->
+    <div id="winPopup" class="menu">
+        <h2>¡¡Winner!!</h2>
+        <button onclick="window.location.href='index.html'">Back to Menu</button>
+        <button onclick="nextlevel()">Next Level</button>
+    </div>
+
+    <!-- Pop up con los controles -->
+    <div id="controlsPopup" class="menu">
+        <h2>Controls</h2>
+        <ul>
+            <li>Move Up: W</li>
+            <li>Move Left: A</li>
+            <li>Move Down: S</li>
+            <li>Move Right: D</li>
+            <li>Pause: P</li>
+            <li>Stop Moving: Space</li>
+        </ul>
+        <button onclick="hideControls()">Close</button>
+    </div>
+
+    <!-- Pop up menu de pausa -->
+    <div id="pauseMenu" class="menu">
+        <h2>Game Paused</h2>
+        <button onclick="window.location.href='index.html'">Back to Menu</button>
+        <button onclick="showControls()">Show Controls</button>
+        <h2>Press P to unpause</h2>
+    </div>
+
+    <script type="text/javascript">
+        const ambientMusic = document.getElementById('ambientMusic');
+
+        function playMusic() {
+            ambientMusic.volume=0.15;
+            ambientMusic.play().catch(error => {
+                console.log('Error playing music: ', error);
+            });
+        }
+
+        document.addEventListener('click', playMusic, { once: true });
+
+        const my_canvas = document.getElementById('my_canvas')
+        const ctx = my_canvas.getContext('2d')
+
+        // Declaracion de variables 
+        var pacmans= [];
+        var coins = [];
+        var levelActual = 1;
+        var numPacmansLevel = 0;
+        var direction = "";
+        var speedPlayer = 0;
+        var speedEnemy = 0;
+        var score = 0;
+        var level = levelActual;
+        var pause = false;
+        var looser = false;
+        var loading = false
+        var spawnx = 0;
+        var spawny = 0;
+
+        const winnerAudio = new Audio("Audios/winner-Audio.mp3");
+        const looserAudio = new Audio("Audios/loose-Audio.mp3");
+        const coinAudio = new Audio("Audios/coin-Audio.mp3")
+
+        winnerAudio.volume=0.15;
+        looserAudio.volume=0.15;
+        coinAudio.volume=0.15;
+
+        const imgPlayer = new Image();
+        const imgEnemy = new Image();
+        const imgCoin = new Image();
+
+        const clyde = new Image();
+        const inky = new Image();
+        const pinky = new Image();
+        
+        imgPlayer.src = "sources/red.png";
+        imgEnemy.src = "sources/evilPacman.png";
+        imgCoin.src = "sources/MonedaD.png";
+
+        clyde.src = "sources/clyde.png";
+        inky.src = "sources/inky.png";
+        pinky.src = "sources/pinky.png";
+
+        // Clases
+
+        // Jugador
+        class player {
+            constructor(x, y, h, a, image, speed) {
+                this.x = x;
+                this.y = y;
+                this.h = h;
+                this.a = a;
+                this.image = image;
+                this.speed = speed;
+                this.startx = x;
+                this.starty = y;
+            }
+
+            colision(pacman){
+                return (
+                    this.x < pacman.x + pacman.a 
+                    && this.x + this.a > pacman.x 
+                    && this.y < pacman.y + pacman.h 
+                    && this.y + this.h > pacman.y
+                );
+            }
+
+            resetPlayer() {
+                this.x = this.startx;
+                this.y = this.starty;
+            }
+        }
+
+        // Obstaculos
+        class enemy {
+            constructor(x, y, h, a, image, speed, direction) {
+                this.x = x;
+                this.y = y;
+                this.h = h;
+                this.a = a;
+                this.image = image;
+                this.speed = speed;
+                this.direction = direction;
+            }
+
+            move(){
+                if(this.direction == "left") {
+                    this.x -= this.speed;
+                    if(this.x < -this.a) {
+                        this.x = 800 + this.a;
+                    }
+                } else {
+                    this.x += this.speed;
+                    if(this.x > 800 + this.a) {
+                        this.x = -this.a;
+                    }
+                }
+            }
+        }
+
+        // Zonas seguras
+        class winZone {
+            constructor(x, y, h, a, color) {
+                this.x = x;
+                this.y = y;
+                this.h = h;
+                this.a = a;
+            }
+        }
+
+        class Coin {
+            constructor(x, y, h, a, image) {
+                this.x = x;
+                this.y = y;
+                this.h = h;
+                this.a = a;
+                this.image = image;
+                this.collected = false;
+            }
+        }
+
+        // Pausar juego
+        function pauseGame() {
+            pause = !pause;
+            if(pause) {
+                pauseMenu.style.display = 'block';
+            } else {
+                pauseMenu.style.display = 'none';
+            }
+        }   
+
+        // Crear zona para ganar
+        const winZone1 = new winZone(340, 0, 40, 40, 'green');
+        const winZone2 = new winZone(380, 0, 40, 40, 'green');
+        const winZone3 = new winZone(420, 0, 40, 40, 'green');
+
+        // Mensaje de victoria
+        function checkWin() {
+            if (
+                (ghost.x < winZone1.x + winZone1.a && ghost.x + ghost.a > winZone1.x && ghost.y < winZone1.y + winZone1.h && ghost.y + ghost.h > winZone1.y) ||
+                (ghost.x < winZone2.x + winZone2.a && ghost.x + ghost.a > winZone2.x && ghost.y < winZone2.y + winZone2.h && ghost.y + ghost.h > winZone2.y) ||
+                (ghost.x < winZone3.x + winZone3.a && ghost.x + ghost.a > winZone3.x && ghost.y < winZone3.y + winZone3.h && ghost.y + ghost.h > winZone3.y)
+                ){
+                pause = true;
+                winnerAudio.pause();
+                winnerAudio.play();
+                document.getElementById('winPopup').style.display = 'block'
+            }
+        }
+
+        // Mensaje al perder
+        function checkLoose() {
+            if(looser) {
+                pause = true;
+                score=0;
+                looserAudio.pause();
+                looserAudio.play();
+                document.getElementById('loosePopup').style.display = 'Block';
+            }
+        }
+
+        // Reiniciar el juego
+        function resetGame() {
+            ghost.resetPlayer();
+            direction="";
+            pacmans= [];
+            coins = [];
+            spawnPacmans();
+            spawnCoins();
+            looser = false;
+            document.getElementById('loosePopup').style.display = 'none';
+            pause = false;
+        }
+
+        //Reiniciar si pierde
+        function resetGameLoose() {
+            ghost.resetPlayer();
+            direction="";
+            coins = [];
+            spawnCoins();
+            looser = false;
+            document.getElementById('loosePopup').style.display = 'none';
+            pause = false;
+        }
+
+        // Avanzar de nivel
+        function nextlevel() {
+            if(level==3){
+                document.getElementById('winPopup').style.display = 'none';
+                document.getElementById('maxLevelPopup').style.display = 'block';
+            } else {
+                level++;
+                updateLevelSettings();
+                resetGame();
+                document.getElementById('winPopup').style.display = 'none';
+                pause = false;
+            }
+        }
+
+        // Mostrar controles
+        function showControls() {
+            document.getElementById('controlsPopup').style.display = 'block';
+        }
+        function hideControls() {
+            document.getElementById('controlsPopup').style.display = 'none';
+        }
+
+        // Crear al jugador
+        const ghost = new player(380, 850, 30, 30, imgPlayer, speedPlayer);
+
+        // Crear pacmans
+        function spawnPacmans() {
+            document.getElementById('loadingPopup').style.display = 'block';
+            for(let i=0; i<=numPacmansLevel;i++){
+                setTimeout(() => {
+                spawnx = Math.random() < 0.5 ? -35 : 800;
+                spawny = Math.floor(Math.random()* 730);
+    
+                spawny += 75;
+    
+                const direction = spawnx === -35 ? "right" : "left";
+    
+                pacmans.push(new enemy(spawnx, spawny, 35, 35, imgEnemy, speedEnemy, direction));
+
+                if(i === numPacmansLevel){
+                    loading = true;
+                    document.getElementById('loadingPopup').style.display = 'none';
+                }
+
+                }, i * 500);
+            }
+            loading = false;
+        }
+
+        function spawnCoins() {
+            for(let i = 0; i<10; i++){
+                const x = Math.floor(Math.random() * (800 - 30));
+                const y = Math.floor(Math.random() * (900 - 100)) + 50;
+                
+                coins.push(new Coin(x,y,30,30, imgCoin));
+            }
+        }
+
+        // Niveles de dificultad
+        function updateLevelSettings() {
+            switch(level){
+                case 1:
+                    speedEnemy = 1;
+                    speedPlayer = 3;
+                    numPacmansLevel = 20;
+                    break;
+                case 2:
+                    speedEnemy = 2;
+                    speedPlayer = 2;
+                    numPacmansLevel = 30;
+                    break;
+                case 3:
+                    speedEnemy = 3;
+                    speedPlayer = 2;
+                    numPacmansLevel = 40;
+                    break;
+            }
+        }
+
+        // Teclas de juego
+        document.addEventListener("keydown", function (e) {
+
+            if (e.keyCode == 87) {
+                direction = "up";
+            } else if (e.keyCode == 65) {
+                direction = "left";
+            } else if (e.keyCode == 83) {
+                direction = "down";
+            } else if (e.keyCode == 68) {
+                direction = "right";
+            } else if (e.keyCode == 32) {
+                direction="";
+            } else if (e.keyCode == 80) {
+                pauseGame();
+                direction="";
+            }
+
+            console.log(e);
+
+        });
+
+        // Movimiento del jugador
+        function update() {
+            if (!pause && loading) {
+                if (direction == "up") {
+                    ghost.y -= (speedPlayer);
+                    if (ghost.y <= 0) {
+                        ghost.y = 0;
+                    }
+                } else if (direction == "left") {
+                    ghost.x -= (speedPlayer);
+                    if (ghost.x <= 0) {
+                        ghost.x = 0;
+                    }
+                } else if (direction == "down") {
+                    ghost.y += (speedPlayer);
+                    if (ghost.y > 875) {
+                        ghost.y = 875;
+                    }
+                } else if (direction == "right") {
+                    ghost.x += (speedPlayer);
+                    if (ghost.x >= 775) {
+                        ghost.x = 775;
+                    }
+                }
+            }
+
+            pacmans.forEach(function(pacman) {
+                if(ghost.colision(pacman)) {
+                    ghost.resetPlayer();
+                    direction = "";
+                    looser = true;
+                    checkLoose();
+                }
+            });
+        }
+
+        // Pintar
+        function showGame(){
+            ctx.clearRect(0,0,800,900);
+
+            if(!pause){
+                ctx.fillStyle = "rgb(18, 18, 20)";
+                ctx.fillRect(0,0,800,900);
+    
+                    pacmans.forEach(function (pacman, index, array) { 
+        
+                        pacman.move();
+        
+                            if(pacman.direction === "right") {
+                                ctx.save();
+                                ctx.scale(-1, 1);
+                                
+                                ctx.drawImage(imgEnemy, -pacman.x - pacman.a,pacman.y,pacman.a,pacman.h);
+                                ctx.restore();
+                            }else{
+                                ctx.drawImage(imgEnemy,pacman.x,pacman.y,pacman.a,pacman.h);
+                            }
+                    });
+
+                    coins.forEach((coin, index) => {
+                        if(!coin.collected) {
+                            ctx.drawImage(imgCoin, coin.x, coin.y, coin.a, coin.h)
+                        }
+
+                        if(ghost.colision(coin) && !coin.collected) {
+                            coinAudio.pause();
+                            coinAudio.play();
+
+                            coin.collected = true;
+                            score +=10;
+                        }
+                    });
+
+                ctx.drawImage(clyde, winZone1.x, winZone1.y, winZone1.a, winZone1.h);
+                ctx.drawImage(inky, winZone2.x, winZone2.y, winZone2.a, winZone2.h);
+                ctx.drawImage(pinky, winZone3.x, winZone3.y, winZone3.a, winZone3.h);    
+                
+                ctx.drawImage(imgPlayer,ghost.x,ghost.y,ghost.a,ghost.h);
+    
+                ctx.fillStyle = "white";
+                ctx.font = "20px Courier New";
+                ctx.fillText("Score:"+score,680,20);
+    
+                ctx.font = "40px Courier New";
+                ctx.fillText("level "+level,20,30);
+    
+                update();
+                checkLoose();
+                checkWin();
+            }
+            requestAnimationFrame(showGame);
+        }
+
+
+        spawnCoins();
+        updateLevelSettings();
+        spawnPacmans();
+        requestAnimationFrame(showGame);
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const ambientMusic = document.getElementById('ambientMusic');
+            ambientMusic.play().catch(error => {
+                console.log('Error playing music: ', error);
+            });
+        });
+
+    </script>
+</body>
+</html>
