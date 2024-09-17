@@ -158,6 +158,10 @@
         var spawnx = 0;
         var spawny = 0;
 
+        var startTime = null;
+        var elapsedTime = 0;
+        var timerRunning = false;
+
         const winnerAudio = new Audio("Audios/winner-Audio.mp3");
         const looserAudio = new Audio("Audios/loose-Audio.mp3");
         const coinAudio = new Audio("Audios/coin-Audio.mp3")
@@ -366,11 +370,23 @@
                 if(i === numPacmansLevel){
                     loading = true;
                     document.getElementById('loadingPopup').style.display = 'none';
+                    startTimer();
                 }
 
                 }, i * 500);
             }
             loading = false;
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerRunning = true;
+        }
+
+        function updateTimer() {
+            if (timerRunning) {
+                elapsedTime = Math.floor((Date.now() - startTime) / 1000); // Tiempo transcurrido en segundos
+            }
         }
 
         function spawnCoins() {
@@ -510,6 +526,12 @@
     
                 ctx.font = "40px Courier New";
                 ctx.fillText("level "+level,20,30);
+
+                if (timerRunning) {
+                    updateTimer();
+                    ctx.font = "20px Courier New";
+                    ctx.fillText("Time: " + elapsedTime + "s", 20, 70);
+                }
     
                 update();
                 checkLoose();
